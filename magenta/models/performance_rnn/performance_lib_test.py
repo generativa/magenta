@@ -17,6 +17,7 @@
 import tensorflow as tf
 
 from magenta.models.performance_rnn import performance_lib
+from magenta.music import chords_lib
 from magenta.music import sequences_lib
 from magenta.music import testing_lib
 from magenta.protobuf import music_pb2
@@ -362,6 +363,66 @@ class PerformanceLibTest(tf.test.TestCase):
         performance, window_size_seconds=1.0, prior_count=0)
 
     self.assertEqual(expected_histogram_sequence, histogram_sequence)
+
+  def testPerformanceChordSequence(self):
+    performance = performance_lib.Performance(steps_per_second=100)
+
+    pe = performance_lib.PerformanceEvent
+    perf_events = [
+        pe(pe.NOTE_ON, 60),
+        pe(pe.NOTE_ON, 64),
+        pe(pe.NOTE_ON, 67),
+        pe(pe.TIME_SHIFT, 50),
+        pe(pe.NOTE_OFF, 60),
+        pe(pe.NOTE_OFF, 64),
+        pe(pe.TIME_SHIFT, 25),
+        pe(pe.NOTE_OFF, 67),
+        pe(pe.NOTE_ON, 64),
+        pe(pe.TIME_SHIFT, 25),
+        pe(pe.NOTE_OFF, 64)
+    ]
+    for event in perf_events:
+      performance.append(event)
+
+    chord_events = ['C', 'C', 'Am7', 'Em']
+    chord_progression = chords_lib.ChordProgression(
+        chord_events, steps_per_quarter=2)
+
+    expected_chord_sequence = [
+        'C', 'C', 'C', 'C', 'Am7', 'Am7', 'Am7', 'Em', 'Em', 'Em', 'N.C.']
+    chord_sequence = performance_lib.performance_chord_sequence(
+        performance, chord_progression, qpm=120.0)
+
+    self.assertEqual(expected_chord_sequence, chord_sequence)
+
+  def testPerformanceMeterSequence(self):
+    performance = performance_lib.Performance(steps_per_second=100)
+
+    pe = performance_lib.PerformanceEvent
+    perf_events = [
+        pe(pe.NOTE_ON, 60),
+        pe(pe.NOTE_ON, 64),
+        pe(pe.NOTE_ON, 67),
+        pe(pe.TIME_SHIFT, 50),
+        pe(pe.NOTE_OFF, 60),
+        pe(pe.NOTE_OFF, 64),
+        pe(pe.TIME_SHIFT, 25),
+        pe(pe.NOTE_OFF, 67),
+        pe(pe.NOTE_ON, 64),
+        pe(pe.TIME_SHIFT, 25),
+        pe(pe.NOTE_OFF, 64)
+    ]
+    for event in perf_events:
+      performance.append(event)
+
+    expected_meter_sequence = [
+        (1, 1), (1, 1), (1, 1), (1, 1), (2, 1), (2, 1), (2, 1),
+        (2, 2), (2, 2), (2, 2), (1, 1)]
+    meter_sequence = performance_lib.performance_meter_sequence(
+        performance, qpm=120.0, time_signature_numerator=2,
+        time_signature_denominator=4, divisions_per_quarter=2)
+
+    self.assertEqual(expected_meter_sequence, meter_sequence)
 
   def testExtractPerformances(self):
     testing_lib.add_track_to_sequence(

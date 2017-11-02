@@ -62,6 +62,49 @@ class Splitter(NoteSequencePipeline):
         note_sequence, self._hop_size_seconds)
 
 
+class BarSplitter(NoteSequencePipeline):
+  """A Pipeline that splits NoteSequences at intervals specified in bars."""
+
+  def __init__(self, hop_size_bars, name=None):
+    """Creates a BarSplitter pipeline.
+
+    Args:
+      hop_size_bars: Hop size in bars that will be used to split a NoteSequence
+          at regular intervals.
+      name: Pipeline name.
+    """
+    super(BarSplitter, self).__init__(name=name)
+    self._hop_size_bars = hop_size_bars
+
+  def transform(self, note_sequence):
+    if not note_sequence.tempos:
+      self._set_stats([statistics.Counter(
+          'sequences_discarded_no_tempo', 1)])
+      return []
+    if len(note_sequence.tempos) > 1:
+      self._set_stats([statistics.Counter(
+          'sequences_discarded_multiple_tempos', 1)])
+      return []
+    if not note_sequence.time_signatures:
+      self._set_stats([statistics.Counter(
+          'sequences_discarded_no_time_signature', 1)])
+      return []
+    if len(note_sequence.time_signatures) > 1:
+      self._set_stats([statistics.Counter(
+          'sequences_discarded_multiple_time_signatures', 1)])
+      return []
+
+    # Determine the number of seconds per bar and use that to split.
+    qpm = note_sequence.tempos[0].qpm
+    quarters_per_beat = 4.0 / note_sequence.time_signatures[0].denominator
+    quarters_per_bar = (quarters_per_beat *
+                        note_sequence.time_signatures[0].numerator)
+    seconds_per_bar = 60.0 * quarters_per_bar / qpm
+    hop_size_seconds = self._hop_size_bars * seconds_per_bar
+
+    return sequences_lib.split_note_sequence(note_sequence, hop_size_seconds)
+
+
 class TimeChangeSplitter(NoteSequencePipeline):
   """A Pipeline that splits NoteSequences on time signature & tempo changes."""
 

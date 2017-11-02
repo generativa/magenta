@@ -582,6 +582,91 @@ def performance_pitch_histogram_sequence(performance, window_size_seconds,
   return histogram_sequence
 
 
+def performance_chord_sequence(performance, chord_progression, qpm):
+  """Outputs the chord in a chord progression for each performance step.
+
+  Args:
+    performance: The Performance for which to produce event-aligned chords.
+    chord_progression: The ChordProgression used to look up the chord for each
+        event in `performance`.
+    qpm: The tempo of the ChordProgression in quarter notes per minute.
+
+  Returns:
+    A list of chords the same length (in events) as `performance`, where the
+    chord corresponding to each Performance event is the chord from
+    `chord_progression` at the time of the event.
+  """
+  chord_steps_per_performance_step = (
+      qpm * chord_progression.steps_per_quarter /
+      (60.0 * performance.steps_per_second))
+
+  chord_sequence = []
+
+  performance_step = 0
+  chord = chord_progression[0]
+
+  for event in performance:
+    chord_sequence.append(chord)
+    if event.event_type == PerformanceEvent.TIME_SHIFT:
+      performance_step += event.event_value
+      chord_progression_step = int(round(
+          performance_step * chord_steps_per_performance_step))
+      if chord_progression_step >= len(chord_progression):
+        chord = constants.NO_CHORD
+      else:
+        chord = chord_progression[chord_progression_step]
+
+  return chord_sequence
+
+
+def performance_meter_sequence(
+    performance, qpm, time_signature_numerator, time_signature_denominator,
+    divisions_per_quarter):
+  """Outputs the metric position for each performance step.
+
+  This will output a sequence of tuples the same length as `performance` (one
+  tuple per Performance event), where the first element of the tuple is the
+  quarter note position in the measure (between 1 and the number of quarter
+  notes per measure) and the second element of the tuple is the "division"
+  (between 1 and `divisions_per_quarter`).
+
+  Args:
+    performance: The Performance for which to produce corresponding meter
+        events.
+    qpm: The tempo in quarter notes per minute to use.
+    time_signature_numerator: The time signature numerator to use.
+    time_signature_denominator: The time signature denominator to use.
+    divisions_per_quarter: The number of metric subdivisions per quarter note to
+        use. Typically, this would be a number like 24 which can accommodate
+        e.g. 32nd notes and triplets.
+
+  Returns:
+    A list of meter tuples the same length (in events) as `performance`.
+  """
+  quarters_per_bar = 4.0 * time_signature_numerator / time_signature_denominator
+  bars_per_second = qpm / (60.0 * quarters_per_bar)
+  bars_per_step = bars_per_second / performance.steps_per_second
+
+  meter_sequence = []
+
+  step = 0
+  meter_state = (1, 1)
+
+  for event in performance:
+    meter_sequence.append(meter_state)
+    if event.event_type == PerformanceEvent.TIME_SHIFT:
+      step += event.event_value
+      bar_float = step * bars_per_step
+      bar_offset = bar_float - math.floor(bar_float)
+      quarter_float = bar_offset * quarters_per_bar
+      quarter = int(math.floor(quarter_float))
+      quarter_offset = quarter_float - quarter
+      division = int(math.floor(quarter_offset * divisions_per_quarter))
+      meter_state = (quarter + 1, division + 1)
+
+  return meter_sequence
+
+
 def extract_performances(
     quantized_sequence, start_step=0, min_events_discard=None,
     max_events_truncate=None, num_velocity_bins=0):

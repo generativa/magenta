@@ -52,6 +52,24 @@ class PipelineUnitsCommonTest(tf.test.TestCase):
     unit = note_sequence_pipelines.Splitter(1.0)
     self._unit_transform_test(unit, note_sequence, expected_sequences)
 
+  def testBarSplitter(self):
+    note_sequence = common_testing_lib.parse_test_proto(
+        music_pb2.NoteSequence,
+        """
+        time_signatures: {
+          numerator: 2
+          denominator: 4}
+        tempos: {
+          qpm: 120}""")
+    testing_lib.add_track_to_sequence(
+        note_sequence, 0,
+        [(12, 100, 0.01, 10.0), (11, 55, 0.22, 0.50), (40, 45, 2.50, 3.50),
+         (55, 120, 4.0, 4.01), (52, 99, 4.75, 5.0)])
+    expected_sequences = sequences_lib.split_note_sequence(note_sequence, 1.0)
+
+    unit = note_sequence_pipelines.BarSplitter(1)
+    self._unit_transform_test(unit, note_sequence, expected_sequences)
+
   def testTimeChangeSplitter(self):
     note_sequence = common_testing_lib.parse_test_proto(
         music_pb2.NoteSequence,
